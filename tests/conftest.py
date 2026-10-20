@@ -1,14 +1,30 @@
-from pathlib import Path
+import pytest
 
-import django
-from django.conf import settings
+from django.core.cache import caches
+
+from rdmo_gnd.providers import GNDKeywordsProvider, GNDProvider
+
+from .helpers import response, search_response
 
 
-def pytest_configure():
-    if not settings.configured:
-        settings.configure(
-            USE_I18N=True,
-            LANGUAGE_CODE='en',
-            LOCALE_PATHS=[str(Path(__file__).resolve().parents[1] / 'rdmo_gnd' / 'locale')],
-        )
-        django.setup()
+@pytest.fixture(autouse=True)
+def clear_cache():
+    caches['default'].clear()
+    yield
+    caches['default'].clear()
+
+
+@pytest.fixture(autouse=True)
+def http_get(mocker):
+    """Keep tests independent of public GND services."""
+    return mocker.patch('rdmo_gnd.client.requests.get', return_value=response(search_response()))
+
+
+@pytest.fixture
+def provider():
+    return GNDProvider('gnd', 'GND', 'rdmo_gnd.providers.GNDProvider')
+
+
+@pytest.fixture
+def keyword_provider():
+    return GNDKeywordsProvider('gnd_keywords', 'GND Keywords', 'rdmo_gnd.providers.GNDKeywordsProvider')
