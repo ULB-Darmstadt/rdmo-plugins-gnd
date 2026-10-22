@@ -36,8 +36,12 @@ class GNDHTTPClient:
         if self.response_cache is None:
             return self._fetch(kind, url, params, validate)
         return self.response_cache.get_or_fetch(
-            kind=kind, url=url, params=params, headers=self.headers,
-            fetch=lambda: self._fetch(kind, url, params, validate), validate=validate,
+            kind=kind,
+            url=url,
+            params=params,
+            headers=self.headers,
+            fetch=lambda: self._fetch(kind, url, params, validate),
+            validate=validate,
         )
 
     def _fetch(self, kind, url, params, validate):
@@ -79,7 +83,11 @@ class GNDHTTPClient:
         request_id = request_id or response.headers.get('X-Request-ID', '-')
         logger.warning(
             'GND %s request failed at %s: %s (HTTP %s, request ID %s).',
-            kind, self.url, reason, response.status_code, request_id,
+            kind,
+            self.url,
+            reason,
+            response.status_code,
+            request_id,
         )
 
 
@@ -117,7 +125,8 @@ class GNDKeywordSynonymClient(GNDClient):
         literal = '"' + query.replace('\\', '\\\\').replace('"', '\\"') + '"'
         params = {
             'q': f'preferredName:{literal} OR variantName:{literal}',
-            'filter': 'type:SubjectHeading', 'format': 'json',
+            'filter': 'type:SubjectHeading',
+            'format': 'json',
         }
         data = self._get('search', 'search', params, is_search_response)
         if data is None:
