@@ -5,13 +5,13 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-User=rdmo-gnd
-Group=rdmo-gnd
+User=rdmo
+Group=rdmo
 UMask=0027
-ExecStart=/opt/rdmo-gnd/venv/bin/rdmo-gnd update --directory /var/lib/rdmo-gnd
+ExecStart=/srv/rdmo/env/bin/rdmo-gnd update --directory /srv/rdmo-config/gnd
 TimeoutStartSec=30min
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/rdmo-gnd
+ReadWritePaths=/srv/rdmo-config/gnd

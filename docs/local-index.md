@@ -14,28 +14,33 @@ do not initialize Django or RDMO.
 
 ## Install and bootstrap on Ubuntu
 
-Build the index once per VM. Each RDMO environment also needs the `local` extra.
-The updater owns the directory; the web processes only need group read access.
-Use an administrator shell for the system installation commands below and replace
-`www-data` with the account running your RDMO workers if necessary.
+Use your existing RDMO virtual environment and the existing `rdmo` account.
+A separate environment or system user is optional: it can isolate the updater's
+packages and write permissions, but is not required for local search. The updater
+still runs as a separate scheduled command, even when it shares RDMO's environment.
+
+Run the following as `rdmo`, with write access to `/srv/rdmo/env` and
+`/srv/rdmo-config`:
 
 ```bash
-sudo apt install python3.12-venv
-sudo useradd --system --home-dir /var/lib/rdmo-gnd --shell /usr/sbin/nologin rdmo-gnd
-sudo install -d -o root -g root -m 0755 /opt/rdmo-gnd
-sudo python3.12 -m venv /opt/rdmo-gnd/venv
-sudo /opt/rdmo-gnd/venv/bin/pip install 'rdmo-plugins-gnd[local]'
-sudo install -d -o rdmo-gnd -g rdmo-gnd -m 0750 /var/lib/rdmo-gnd
-sudo usermod -aG rdmo-gnd www-data
-sudo -u rdmo-gnd sh -c 'umask 027; /opt/rdmo-gnd/venv/bin/rdmo-gnd update'
-/opt/rdmo-gnd/venv/bin/rdmo-gnd status --json
+/srv/rdmo/env/bin/pip install 'rdmo-plugins-gnd[local]'
+mkdir -p /srv/rdmo-config/gnd
+/srv/rdmo/env/bin/rdmo-gnd update --directory /srv/rdmo-config/gnd
+ln -s current.sqlite /srv/rdmo-config/gnd/index.sqlite
+/srv/rdmo/env/bin/rdmo-gnd status --directory /srv/rdmo-config/gnd --json
 ```
 
-Run `pip install 'rdmo-plugins-gnd[local]'` in **each RDMO virtual environment**.
+The updater publishes `current.sqlite`. Create the `index.sqlite` symlink once to
+use your preferred filename; it follows future atomic updates automatically. The
+index directory also holds downloaded archives and previous database generations.
+If several RDMO installations share this environment, install the plugin once and
+configure each installation to read the same index. RDMO workers need read access
+to the directory and database files; the `rdmo` account already owns them.
+
 Register the provider in `config/settings/local.py`:
 
 ```python
-GND_INDEX_PATH = '/var/lib/rdmo-gnd/current.sqlite'
+GND_INDEX_PATH = '/srv/rdmo-config/gnd/index.sqlite'
 GND_INDEX_MAX_AGE_DAYS = 30  # warning only, based on the source snapshot date
 
 OPTIONSET_PROVIDERS += [
@@ -45,7 +50,7 @@ OPTIONSET_PROVIDERS += [
 ```
 
 Keep `rdmo_gnd` in `INSTALLED_APPS`. Run `python manage.py check`, then restart
-RDMO workers to load the new registration and supplementary group membership.
+RDMO workers to load the new provider registration.
 Select **GND Local Keywords Provider** in the OptionSet management interface.
 [The example catalog](../xml/questions-gnd.xml) includes a separate question,
 attribute, and OptionSet for it. Test `fuel`, `Brennstoff`, and `fuel ce`, save a
@@ -86,7 +91,8 @@ The `lookup` entry is configuration and is never mapped to an attribute.
 
 ## Updating and rollback
 
-Install [the service](deployment/rdmo-gnd-update.service) and
+The service example uses `User=rdmo`, `/srv/rdmo/env`, and
+`/srv/rdmo-config/gnd`. Install [the service](deployment/rdmo-gnd-update.service) and
 [the timer](deployment/rdmo-gnd-update.timer):
 
 ```bash
@@ -103,7 +109,8 @@ repeatedly downloading the same file. Run an immediate check with
 `sudo systemctl start rdmo-gnd-update.service`.
 
 ```text
-/var/lib/rdmo-gnd/
+/srv/rdmo-config/gnd/
+├── index.sqlite -> current.sqlite
 ├── current.sqlite -> versions/gnd-<generation>.sqlite
 ├── versions/
 ├── downloads/
@@ -140,7 +147,7 @@ Failures return a nonzero status and appear in journald. Snapshot age is not the
 same as the time of the last check.
 
 To roll back, stop the updater, select a retained generation, and atomically
-replace the link. As `rdmo-gnd` in `/var/lib/rdmo-gnd`:
+replace the link. As `rdmo` in `/srv/rdmo-config/gnd`:
 
 ```bash
 ln -s versions/<previous-generation>.sqlite rollback.sqlite
@@ -185,10 +192,10 @@ matching, application response cache, or HTTP fallback from this provider.
 
 ```bash
 rdmo-gnd build --source subjects.xml.gz --output /tmp/gnd.sqlite
-rdmo-gnd update --directory /var/lib/rdmo-gnd
-rdmo-gnd update --directory /var/lib/rdmo-gnd --force
-rdmo-gnd status --directory /var/lib/rdmo-gnd --json
-rdmo-gnd search 'fuel ce' --directory /var/lib/rdmo-gnd --limit 20
+rdmo-gnd update --directory /srv/rdmo-config/gnd
+rdmo-gnd update --directory /srv/rdmo-config/gnd --force
+rdmo-gnd status --directory /srv/rdmo-config/gnd --json
+rdmo-gnd search 'fuel ce' --directory /srv/rdmo-config/gnd --limit 20
 ```
 
 `build` refuses existing output files and accepts small fixtures; production size
@@ -223,7 +230,9 @@ fetch the archive or rebuild.
 
 The normalized full-text index uses schema and importer version **2**. Version-1
 artifacts must be rebuilt; they are never migrated or modified in place. Before
-first deploying this provider, run `rdmo-gnd update` using the updated package and
-verify `schema_version` and `importer_version` in `rdmo-gnd status --json`. An
+first deploying this provider, run
+`rdmo-gnd update --directory /srv/rdmo-config/gnd` using the updated package and
+verify `schema_version` and `importer_version` in
+`rdmo-gnd status --directory /srv/rdmo-config/gnd --json`. An
 unchanged archive is reused after checksum verification, but it is rebuilt for the
 new version. The provider reports older schemas as unavailable until rebuilt.
