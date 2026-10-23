@@ -20,15 +20,25 @@ packages and write permissions, but is not required for local search. The update
 still runs as a separate scheduled command, even when it shares RDMO's environment.
 
 Run the following as `rdmo`, with write access to `/srv/rdmo/env` and
-`/srv/rdmo-config`:
+`/srv/rdmo/rdmo-config`:
 
 ```bash
 /srv/rdmo/env/bin/pip install 'rdmo-plugins-gnd[local]'
-mkdir -p /srv/rdmo-config/gnd
-/srv/rdmo/env/bin/rdmo-gnd update --directory /srv/rdmo-config/gnd
-ln -s current.sqlite /srv/rdmo-config/gnd/index.sqlite
-/srv/rdmo/env/bin/rdmo-gnd status --directory /srv/rdmo-config/gnd --json
+mkdir -p /srv/rdmo/rdmo-config/gnd
+/srv/rdmo/env/bin/rdmo-gnd update --directory /srv/rdmo/rdmo-config/gnd
+ln -s current.sqlite /srv/rdmo/rdmo-config/gnd/index.sqlite
+/srv/rdmo/env/bin/rdmo-gnd status --directory /srv/rdmo/rdmo-config/gnd --json
 ```
+
+If `/srv/rdmo/env` is already activated, use the commands directly:
+
+```bash
+rdmo-gnd update --directory /srv/rdmo/rdmo-config/gnd
+rdmo-gnd status --directory /srv/rdmo/rdmo-config/gnd --json
+```
+
+The systemd service keeps the full executable path because it does not activate
+your shell's virtual environment.
 
 The updater publishes `current.sqlite`. Create the `index.sqlite` symlink once to
 use your preferred filename; it follows future atomic updates automatically. The
@@ -40,7 +50,7 @@ to the directory and database files; the `rdmo` account already owns them.
 Register the provider in `config/settings/local.py`:
 
 ```python
-GND_INDEX_PATH = '/srv/rdmo-config/gnd/index.sqlite'
+GND_INDEX_PATH = '/srv/rdmo/rdmo-config/gnd/index.sqlite'
 GND_INDEX_MAX_AGE_DAYS = 30  # warning only, based on the source snapshot date
 
 OPTIONSET_PROVIDERS += [
@@ -92,7 +102,7 @@ The `lookup` entry is configuration and is never mapped to an attribute.
 ## Updating and rollback
 
 The service example uses `User=rdmo`, `/srv/rdmo/env`, and
-`/srv/rdmo-config/gnd`. Install [the service](deployment/rdmo-gnd-update.service) and
+`/srv/rdmo/rdmo-config/gnd`. Install [the service](deployment/rdmo-gnd-update.service) and
 [the timer](deployment/rdmo-gnd-update.timer):
 
 ```bash
@@ -109,7 +119,7 @@ repeatedly downloading the same file. Run an immediate check with
 `sudo systemctl start rdmo-gnd-update.service`.
 
 ```text
-/srv/rdmo-config/gnd/
+/srv/rdmo/rdmo-config/gnd/
 ├── index.sqlite -> current.sqlite
 ├── current.sqlite -> versions/gnd-<generation>.sqlite
 ├── versions/
@@ -147,7 +157,7 @@ Failures return a nonzero status and appear in journald. Snapshot age is not the
 same as the time of the last check.
 
 To roll back, stop the updater, select a retained generation, and atomically
-replace the link. As `rdmo` in `/srv/rdmo-config/gnd`:
+replace the link. As `rdmo` in `/srv/rdmo/rdmo-config/gnd`:
 
 ```bash
 ln -s versions/<previous-generation>.sqlite rollback.sqlite
@@ -192,10 +202,10 @@ matching, application response cache, or HTTP fallback from this provider.
 
 ```bash
 rdmo-gnd build --source subjects.xml.gz --output /tmp/gnd.sqlite
-rdmo-gnd update --directory /srv/rdmo-config/gnd
-rdmo-gnd update --directory /srv/rdmo-config/gnd --force
-rdmo-gnd status --directory /srv/rdmo-config/gnd --json
-rdmo-gnd search 'fuel ce' --directory /srv/rdmo-config/gnd --limit 20
+rdmo-gnd update --directory /srv/rdmo/rdmo-config/gnd
+rdmo-gnd update --directory /srv/rdmo/rdmo-config/gnd --force
+rdmo-gnd status --directory /srv/rdmo/rdmo-config/gnd --json
+rdmo-gnd search 'fuel ce' --directory /srv/rdmo/rdmo-config/gnd --limit 20
 ```
 
 `build` refuses existing output files and accepts small fixtures; production size
@@ -231,8 +241,8 @@ fetch the archive or rebuild.
 The normalized full-text index uses schema and importer version **2**. Version-1
 artifacts must be rebuilt; they are never migrated or modified in place. Before
 first deploying this provider, run
-`rdmo-gnd update --directory /srv/rdmo-config/gnd` using the updated package and
+`rdmo-gnd update --directory /srv/rdmo/rdmo-config/gnd` using the updated package and
 verify `schema_version` and `importer_version` in
-`rdmo-gnd status --directory /srv/rdmo-config/gnd --json`. An
+`rdmo-gnd status --directory /srv/rdmo/rdmo-config/gnd --json`. An
 unchanged archive is reused after checksum verification, but it is rebuilt for the
 new version. The provider reports older schemas as unavailable until rebuilt.
