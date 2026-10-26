@@ -19,11 +19,18 @@ class GNDProvider(Provider):
         if search:
             url = getattr(settings, 'GND_PROVIDER_URL', 'https://lobid.org/gnd').rstrip('/')
             headers = getattr(settings, 'GND_PROVIDER_HEADERS', {})
+            query = self.get_search(search)
+            extra_params = getattr(settings, 'GND_PARAMS', {})
             params = {
-                'q': self.get_search(search),
+                'q': query,
                 'format': 'json',
-                **getattr(settings, 'GND_PARAMS', {}),
+                **extra_params,
             }
+            query_template = extra_params.get('q')
+            if query_template and '{search}' in query_template:
+                # Insert user input as a literal phrase, keeping query syntax in the template.
+                literal = '"' + query.replace('\\', '\\\\').replace('"', '\\"') + '"'
+                params['q'] = query_template.replace('{search}', literal)
             try:
                 response = requests.get(
                     f'{url}/search',

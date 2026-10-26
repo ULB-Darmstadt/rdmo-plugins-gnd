@@ -157,3 +157,62 @@ def test_search_settings(provider, get):
         headers={'User-Agent': 'NFDI4Ing RDMO GND integration; mailto:rdmo@nfdi4ing.de'},
         timeout=3,
     )
+
+
+@override_settings(
+    GND_PARAMS={
+        'filter': 'type:SubjectHeading',
+        'q': 'preferredName:{search} OR variantName:{search}',
+    },
+)
+@pytest.mark.parametrize(
+    ('search', 'literal'),
+    [
+        ('Brennstoff', '"Brennstoff"'),
+        ('  erneuerbare Energie  ', '"erneuerbare Energie"'),
+        ('Brennstoff [<a href="https://d-nb.info/gnd/4008155-6">4008155-6</a>]', '"Brennstoff"'),
+        (r'"Energie" \\ Wärme', r'"\"Energie\" \\\\ Wärme"'),
+        ('Brennstoff" OR type:Person OR "', '"Brennstoff\\" OR type:Person OR \\""'),
+        ('{search}', '"{search}"'),
+    ],
+)
+def test_keyword_query_template(provider, get, search, literal):
+    get.return_value = response({'totalItems': 0, 'member': []})
+
+    assert provider.get_options(None, search=search) == []
+    assert get.call_args.kwargs['params'] == {
+        'q': f'preferredName:{literal} OR variantName:{literal}',
+        'format': 'json',
+        'filter': 'type:SubjectHeading',
+    }
+
+    # Building one query must not change the configured template for subsequent requests.
+    provider.get_options(None, search='Wärme')
+    assert get.call_args.kwargs['params']['q'] == 'preferredName:"Wärme" OR variantName:"Wärme"'
+
+
+@override_settings(GND_PARAMS={'filter': 'type:SubjectHeading'})
+def test_keyword_filter_without_template(provider, get):
+    get.return_value = response({'totalItems': 0, 'member': []})
+
+    assert provider.get_options(None, search='Brennstoff') == []
+    assert get.call_args.kwargs['params'] == {
+        'q': 'Brennstoff',
+        'format': 'json',
+        'filter': 'type:SubjectHeading',
+    }
+
+
+@override_settings(GND_PARAMS={'q': 'type:SubjectHeading'})
+def test_static_query(provider, get):
+    get.return_value = response({'totalItems': 0, 'member': []})
+
+    assert provider.get_options(None, search='Brennstoff') == []
+    assert get.call_args.kwargs['params']['q'] == 'type:SubjectHeading'
+
+
+def test_placeholder_in_default_search(provider, get):
+    get.return_value = response({'totalItems': 0, 'member': []})
+
+    assert provider.get_options(None, search='{search}') == []
+    assert get.call_args.kwargs['params']['q'] == '{search}'

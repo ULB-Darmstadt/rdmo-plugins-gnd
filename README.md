@@ -50,6 +50,27 @@ GND_PARAMS = {
 }
 ```
 
+To search only for keywords (GND subject headings), use
+`GND_PARAMS = {'filter': 'type:SubjectHeading'}`. This restricts the record type
+while keeping the default search across all fields.
+
+To also limit matching to preferred names and synonyms, configure a query template:
+
+```python
+GND_PARAMS = {
+    'filter': 'type:SubjectHeading',
+    'q': 'preferredName:{search} OR variantName:{search}',
+}
+```
+
+The provider replaces every `{search}` placeholder with the search text as an
+escaped, double-quoted phrase. For example, `Brennstoff` becomes
+`preferredName:"Brennstoff" OR variantName:"Brennstoff"`. Do not add quotes around
+the placeholder yourself. The `filter` is sent separately and remains fixed.
+This uses [lobid's field and phrase search syntax](https://github.com/hbz/lobid/blob/master/doc/lobid-gnd.md#gleichzeitige-suche-in-ansetzungs--und-verweisungsformen).
+A `q` value without `{search}` continues to be sent unchanged as a static query.
+These settings apply to every option set using `GNDProvider`.
+
 [lobid's policy](http://lobid.org/usage-policy/) asks to add a custom `User-Agent` to your requests so that they can perform statistical analyses and, if you add an email address, might contact you. This can be done by adding the following to your settings.
 
 ```python
