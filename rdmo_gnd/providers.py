@@ -1,10 +1,14 @@
+import logging
 import re
 
 from django.conf import settings
+from django.utils.translation import gettext as _
 
 import requests
 
 from rdmo.options.providers import Provider
+
+logger = logging.getLogger(__name__)
 
 
 class GNDProvider(Provider):
@@ -20,15 +24,27 @@ class GNDProvider(Provider):
                 'format': 'json',
                 **getattr(settings, 'GND_PARAMS', {}),
             }
-            response = requests.get(f'{url}/search', params=params, headers=headers)
-
             try:
+                response = requests.get(
+                    f'{url}/search',
+                    params=params,
+                    headers=headers,
+                    timeout=getattr(settings, 'GND_PROVIDER_TIMEOUT', 10),
+                )
+                response.raise_for_status()
                 data = response.json()
-            except requests.exceptions.JSONDecodeError:
-                pass
-            else:
                 if data['totalItems']:
                     return [{'id': item['gndIdentifier'], 'text': self.get_text(item)} for item in data['member']]
+            except (requests.exceptions.RequestException, KeyError, TypeError, ValueError) as exc:
+                logger.warning('GND search failed: %s', exc)
+                # react-select displays this message but prevents it from being selected.
+                return [
+                    {
+                        'id': '__gnd_request_error__',
+                        'text': _('The GND service is currently unavailable. Please try again later.'),
+                        'isDisabled': True,
+                    }
+                ]
 
         # return an empty list by default
         return []
@@ -41,7 +57,7 @@ class GNDProvider(Provider):
 
         try:
             professionOrOccupation = item['professionOrOccupation'][0]['label']
-        except (ValueError, KeyError):
+        except (ValueError, KeyError, IndexError):
             professionOrOccupation = None
 
         if professionOrOccupation is None:

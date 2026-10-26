@@ -57,3 +57,15 @@ GND_PROVIDER_HEADERS = {
     'User-Agent': 'Mein Projekt; mailto:meinprojekt@example.org'
 }
 ```
+
+If the GND search service cannot be reached, returns an HTTP error, or sends an invalid response,
+the search dropdown shows "The GND service is currently unavailable. Please try again later."
+This message cannot be selected as an answer. Details are logged through `rdmo_gnd.providers`.
+The message follows the active RDMO language, with English and German translations included.
+In German, it reads "Der GND-Dienst ist derzeit nicht verfügbar. Bitte versuchen Sie es später erneut."
+
+Search requests use a timeout of 10 seconds. You can change it in your settings:
+
+```python
+GND_PROVIDER_TIMEOUT = 10
+```
