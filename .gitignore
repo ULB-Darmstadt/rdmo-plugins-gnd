@@ -16,3 +16,6 @@ __pycache__/
 
 # Generated version metadata
 /rdmo_gnd/_version.py
+/.venv/
+/.pytest_cache/
+/.ruff_cache/
